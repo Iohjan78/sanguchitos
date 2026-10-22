@@ -1,0 +1,18 @@
+# better-sqlite3 es un modulo nativo: se compila en su script de instalacion.
+# pnpm 10+ no corre los scripts de las dependencias salvo que se le permita.
+#
+# Lo correcto seria acotarlo con onlyBuiltDependencies, pero en pnpm 12 no
+# surte efecto: se probo en el workspace, en .npmrc y como flag, y las tres
+# veces siguio diciendo "Ignored build scripts". Lo unico que funciona es
+# esto, que habilita los scripts de todas las dependencias.
+#
+# Es lo que npm y yarn hacen por defecto; pnpm es el unico que lo bloquea.
+# El riesgo esta acotado: la instalacion corre adentro del contenedor de
+# build, contra un lockfile fijo, y nada de eso llega a la imagen final.
+dangerouslyAllowAllBuilds: true
+
+pmOnFail: ignore
+
+minimumReleaseAgeExclude:
+  - '@next/*'
+  - next

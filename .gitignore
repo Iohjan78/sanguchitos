@@ -1,0 +1,59 @@
+# ============================================================
+# SECRETOS — lo que NUNCA se sube
+# ============================================================
+# .env tiene el token del bot de Telegram. Si se sube, cualquiera
+# que lo lea puede mandar mensajes al grupo haciendose pasar por el bot.
+.env
+.env.*
+# .env.example si se sube: es la plantilla, va sin valores reales.
+!.env.example
+
+# ============================================================
+# LA BASE DE DATOS
+# ============================================================
+# En produccion vive en un volumen de Docker, fuera del proyecto.
+# Pero si alguna vez se corre en local apuntando aca, estos aparecen.
+# Son los nombres de quienes se anotaron: datos de personas.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+data/
+
+# ============================================================
+# LO QUE SE REGENERA SOLO
+# ============================================================
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# ============================================================
+# BASURA DEL SISTEMA Y DEL EDITOR
+# ============================================================
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Logs sueltos
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# ============================================================
+# RESTOS DE v0 (el generador con el que arranco el proyecto)
+# ============================================================
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.design-cache/
+.v0-trash/
+.vercel/

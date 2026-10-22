@@ -1,0 +1,29 @@
+services:
+  web:
+    build: .
+    # El DNS del host resuelve contra un servidor IPv6 y el contenedor no tiene
+    # salida IPv6: las consultas se colgaban de forma intermitente (ETIMEDOUT).
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    ports:
+      - "0.0.0.0:2000:3000"
+    environment:
+      NODE_ENV: production
+      # La base es un archivo. Vive en el volumen de abajo, NO adentro de la
+      # imagen: si estuviera adentro, cada rebuild borraria la lista.
+      SQLITE_PATH: /app/data/sanguchitos.db
+      # La red del contenedor no tiene salida IPv6, y la IP v6 de Telegram no
+      # rechaza: se come los paquetes. Node intenta ambas familias en paralelo
+      # (Happy Eyeballs) y queda colgado hasta el timeout, de forma intermitente.
+      # ipv4first ordena la lista; no-network-family-autoselection evita el
+      # intento por IPv6. Hacen falta las dos.
+      NODE_OPTIONS: --dns-result-order=ipv4first --no-network-family-autoselection
+      TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    volumes:
+      - sqlitedata:/app/data
+    restart: unless-stopped
+
+volumes:
+  sqlitedata:

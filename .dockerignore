@@ -1,0 +1,19 @@
+node_modules
+.next
+.git
+.env
+.env.*
+db
+Dockerfile
+docker-compose.yml
+*.md
+.DS_Store
+
+# Restos del sandbox de v0
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.design-cache/
+.v0-trash/
+.vercel/
