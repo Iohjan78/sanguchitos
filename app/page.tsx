@@ -2,20 +2,27 @@
 
 import useSWR from 'swr'
 import { FormEvent, useState } from 'react'
-import { Check, ClipboardList, PartyPopper, Plus, RotateCcw, Sandwich, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { Check, ClipboardList, Copy, LockKeyhole, PartyPopper, Plus, RotateCcw, Sandwich, Trash2, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Order = { id: string; name: string; quantity: number; createdAt: string }
+type Settings = { alias: string; price: number | null; aliasUpdatedAt: string | null }
 const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then((response) => response.json())
+const pesos = (valor: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(valor)
+// Fijo a Argentina para que todos vean la misma fecha, sin importar el navegador.
+const fechaHora = (valor: string) => new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(valor))
 
 export default function Page() {
   const { data: orders = [], mutate, isLoading } = useSWR<Order[]>('/api/orders', fetcher, { refreshInterval: 5000 })
+  const { data: settings } = useSWR<Settings>('/api/settings', fetcher, { refreshInterval: 30000 })
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [isClearing, setIsClearing] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   async function addOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -59,7 +66,16 @@ export default function Page() {
     await mutate()
   }
 
+  async function copyAlias() {
+    if (!settings?.alias) return
+    try { await navigator.clipboard.writeText(settings.alias) } catch { return }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   const total = orders.reduce((sum, order) => sum + order.quantity, 0)
+  const price = settings?.price ?? null
+  const cantidad = Number(quantity)
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#fff8ed] text-[#3c201b]">
@@ -71,15 +87,28 @@ export default function Page() {
             <h1 className="max-w-xl text-5xl font-black tracking-[-0.06em] text-[#762d23] sm:text-7xl">Viernes de<br /><span className="text-[#e36d2f]">sanguchitos</span></h1>
             <p className="mt-4 max-w-md text-base leading-7 text-[#785b50]">Sumate a la lista y ayudanos a calcular cuántos sanguchitos preparar.</p>
           </div>
-          <div className="hidden rounded-3xl border-2 border-[#f2c46d] bg-[#ffe9a9] p-4 text-[#a34d25] shadow-[4px_5px_0_#f2c46d] sm:block"><Sandwich className="size-14" strokeWidth={1.5} /></div>
+          <div className="flex flex-col items-end gap-3"><div className="hidden rounded-3xl border-2 border-[#f2c46d] bg-[#ffe9a9] p-4 text-[#a34d25] shadow-[4px_5px_0_#f2c46d] sm:block"><Sandwich className="size-14" strokeWidth={1.5} /></div><Link href="/admin" aria-label="Admin" title="Admin" className="flex size-9 items-center justify-center rounded-xl text-[#d8b49c] transition-colors hover:bg-[#fff0c9] hover:text-[#762d23]"><LockKeyhole className="size-4" /></Link></div>
         </header>
+
+        {(settings?.alias || price) && (
+          <div className="mb-6 rounded-[2rem] border-2 border-[#762d23] bg-[#fff0c9] p-5 shadow-[5px_6px_0_#762d23] sm:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#e36d2f] text-white"><Wallet className="size-5" /></div><h2 className="text-xl font-black text-[#762d23]">Datos para pagar</h2></div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {price && <div className="rounded-2xl border border-[#f2c46d] bg-white px-5 py-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b36b37]">Precio por sanguchito</p><p className="mt-1 text-3xl font-black text-[#e36d2f]">{pesos(price)}</p></div>}
+              {settings?.alias && <div className="flex flex-col items-start gap-3 rounded-2xl border border-[#f2c46d] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0 max-w-full"><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b36b37]">Alias para transferir</p><p className="mt-1 text-2xl font-black break-words text-[#542d24] select-all">{settings.alias}</p></div><Button type="button" variant="ghost" onClick={copyAlias} className="h-10 shrink-0 rounded-xl border border-[#f2c46d] bg-[#fff8ed] px-3 font-bold text-[#a34d25] hover:bg-[#fff0c9] hover:text-[#762d23]">{copied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />} {copied ? 'Copiado' : 'Copiar'}</Button></div>}
+            </div>
+            {settings?.alias && settings.aliasUpdatedAt && <p className="mt-3 text-xs text-[#a87967]">Alias cargado el {fechaHora(settings.aliasUpdatedAt)}</p>}
+          </div>
+        )}
 
         <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
           <div className="rounded-[2rem] border-2 border-[#762d23] bg-[#e36d2f] p-6 text-white shadow-[7px_8px_0_#762d23] sm:p-8">
             <div className="mb-8 flex items-center gap-3"><div className="flex size-11 items-center justify-center rounded-2xl bg-[#ffe9a9] text-[#762d23]"><Plus /></div><div><h2 className="text-2xl font-black">Agregate a la lista</h2><p className="text-sm text-[#ffe9cf]">Es rápido y sin vueltas.</p></div></div>
             <form className="flex flex-col gap-5" onSubmit={addOrder}>
               <label className="flex flex-col gap-2 text-sm font-bold" htmlFor="name">Tu nombre<input id="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Romina" maxLength={80} required className="h-14 rounded-2xl border-2 border-[#f59b62] bg-[#fff8ed] px-4 text-base font-medium text-[#3c201b] outline-none placeholder:text-[#b98b75] focus:border-[#ffe9a9] focus:ring-4 focus:ring-[#ffe9a9]/30" /></label>
-              <label className="flex flex-col gap-2 text-sm font-bold" htmlFor="quantity">¿Cuántos querés?<input id="quantity" type="number" min="1" max="99" value={quantity} onChange={(event) => setQuantity(event.target.value)} required className="h-14 rounded-2xl border-2 border-[#f59b62] bg-[#fff8ed] px-4 text-base font-medium text-[#3c201b] outline-none focus:border-[#ffe9a9] focus:ring-4 focus:ring-[#ffe9a9]/30" /></label>
+              <label className="flex flex-col gap-2 text-sm font-bold" htmlFor="quantity">¿Cuántos querés?<input id="quantity" type="number" min="1" max="99" value={quantity} onChange={(event) => setQuantity(event.target.value)} required className="h-14 rounded-2xl border-2 border-[#f59b62] bg-[#fff8ed] px-4 text-base font-medium text-[#3c201b] outline-none focus:border-[#ffe9a9] focus:ring-4 focus:ring-[#ffe9a9]/30" />{price && Number.isInteger(cantidad) && cantidad > 0 && <span className="text-sm font-medium text-[#ffe9cf]">Te sale {pesos(price * cantidad)}</span>}</label>
               <Button type="submit" disabled={isSaving} className="mt-2 h-14 rounded-2xl bg-[#ffe9a9] text-base font-black text-[#762d23] hover:bg-white">{isSaving ? 'Guardando...' : 'Anotar pedido'} <Check data-icon="inline-end" /></Button>
             </form>
             {message && <p className="mt-4 text-center text-sm font-bold text-[#fff1c7]">{message}</p>}

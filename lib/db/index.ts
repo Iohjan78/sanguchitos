@@ -20,13 +20,17 @@ function abrir(): Database.Database {
   sqlite.pragma('foreign_keys = ON')
 
   // Reemplaza al init.sql que corria Postgres al crear el volumen. Aca el
-  // esquema se asegura al abrir: es una sola tabla y es idempotente.
+  // esquema se asegura al abrir: son dos tablas chicas y es idempotente.
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS sandwich_orders (
       id          TEXT    PRIMARY KEY,
       name        TEXT    NOT NULL,
       quantity    INTEGER NOT NULL,
       created_at  INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS settings (
+      key    TEXT PRIMARY KEY,
+      value  TEXT NOT NULL
     );
   `)
 

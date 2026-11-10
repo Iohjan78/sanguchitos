@@ -16,3 +16,11 @@ export const sandwichOrders = sqliteTable('sandwich_orders', {
 })
 
 export type SandwichOrder = typeof sandwichOrders.$inferSelect
+
+// Datos que carga el admin y se muestran en la landing (alias para
+// transferir y precio por sanguchito). Clave/valor: son dos datos sueltos y
+// no vale la pena una tabla con columnas fijas para eso.
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+})
