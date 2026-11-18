@@ -15,13 +15,15 @@ const fechaHora = (valor: string) => new Intl.DateTimeFormat('es-AR', { day: '2-
 
 export default function Page() {
   const { data: orders = [], mutate, isLoading } = useSWR<Order[]>('/api/orders', fetcher, { refreshInterval: 5000 })
-  const { data: settings } = useSWR<Settings>('/api/settings', fetcher, { refreshInterval: 30000 })
+  const { data: settings, mutate: mutateSettings } = useSWR<Settings>('/api/settings', fetcher, { refreshInterval: 30000 })
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [isClearing, setIsClearing] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearSettings, setClearSettings] = useState(true)
   const [copied, setCopied] = useState(false)
   const [payingId, setPayingId] = useState<string | null>(null)
 
@@ -69,19 +71,26 @@ export default function Page() {
     await mutate()
   }
 
+  function askClear() {
+    if (!orders.length && !hasSettings) return
+    // Cada vez que se abre arranca tildado: lo normal es empezar de cero.
+    setClearSettings(true)
+    setConfirmClear(true)
+  }
+
   async function clearOrders() {
-    if (!orders.length) return
-    if (!window.confirm(`¿Borrar la lista completa? Son ${orders.length} anotados. Se manda el detalle al bot antes de borrar.`)) return
+    const conAjustes = clearSettings && hasSettings
+    setConfirmClear(false)
     setMessage('')
     setIsClearing(true)
-    const response = await fetch('/api/orders', { method: 'DELETE' })
+    const response = await fetch(`/api/orders${conAjustes ? '?ajustes=1' : ''}`, { method: 'DELETE' })
     setIsClearing(false)
     if (!response.ok) {
       setMessage('No se pudo borrar la lista.')
       return
     }
-    setMessage('Lista borrada. El detalle quedó en Telegram.')
-    await mutate()
+    setMessage(!orders.length ? 'Alias y monto borrados.' : conAjustes ? 'Lista, alias y monto borrados. El detalle quedó en Telegram.' : 'Lista borrada. El detalle quedó en Telegram.')
+    await Promise.all([mutate(), conAjustes && mutateSettings()])
   }
 
   async function copyAlias() {
@@ -94,6 +103,7 @@ export default function Page() {
   const total = orders.reduce((sum, order) => sum + order.quantity, 0)
   const price = settings?.price ?? null
   const cantidad = Number(quantity)
+  const hasSettings = Boolean(settings?.alias || price)
   // Se cobra recien cuando el admin cargo alias y precio: antes no hay a donde ni cuanto pagar.
   const cobrando = Boolean(settings?.alias && price)
 
@@ -137,11 +147,25 @@ export default function Page() {
           <div className="rounded-[2rem] border-2 border-[#f2c46d] bg-white/80 p-6 shadow-[4px_5px_0_#f2c46d] backdrop-blur-sm sm:p-8">
             <div className="mb-6 flex flex-col gap-4"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-[#b36b37]"><ClipboardList className="size-4" /> Lista compartida</div><h2 className="mt-2 text-3xl font-black text-[#762d23]">¿Quiénes se prenden?</h2></div><div className="rounded-2xl bg-[#fff0c9] px-4 py-2 text-center"><div className="text-2xl font-black text-[#e36d2f]">{total}</div><div className="text-[10px] font-bold uppercase tracking-wider text-[#9a4e26]">sanguchitos</div></div></div></div>
             {isLoading ? <div className="flex min-h-48 items-center justify-center text-[#a87967]"><RotateCcw className="mr-2 size-4 animate-spin" /> Cargando...</div> : orders.length === 0 ? <div className="flex min-h-48 flex-col items-center justify-center rounded-3xl border-2 border-dashed border-[#f2c46d] bg-[#fffaf1] px-6 text-center"><Sandwich className="mb-3 size-10 text-[#e9a64b]" /><p className="font-bold text-[#762d23]">Todavía no hay pedidos</p><p className="mt-1 text-sm text-[#a87967]">Sé el primero en sumarte.</p></div> : <ul className="flex max-h-[26rem] flex-col gap-3 overflow-y-auto pr-1 [scrollbar-color:#e9a64b_transparent] [scrollbar-width:thin]">{orders.map((order, index) => <li key={order.id} className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${order.paidAt ? 'border-[#b9dfa6] bg-[#f2fbea]' : 'border-[#f4dfb6] bg-[#fffaf1]'}`}><div className="flex min-w-0 items-center gap-3"><span className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white ${order.paidAt ? 'bg-[#4f9d3a]' : 'bg-[#e36d2f]'}`}>{orders.length - index}</span><div className="min-w-0"><p className="truncate font-bold text-[#542d24]">{order.name}</p>{cobrando && price && <p className={`text-xs font-bold ${order.paidAt ? 'text-[#4f9d3a]' : 'text-[#b36b37]'}`}>{order.paidAt ? 'Pagó' : 'A pagar'} {pesos(order.quantity * price)}</p>}</div></div><div className="flex shrink-0 items-center gap-2"><span className="rounded-xl bg-[#ffe9a9] px-3 py-1.5 text-sm font-black text-[#9a4e26]">{order.quantity} {order.quantity === 1 ? 'sanguchito' : 'sanguchitos'}</span>{cobrando && <button type="button" onClick={() => togglePaid(order)} disabled={payingId === order.id} aria-pressed={Boolean(order.paidAt)} title={order.paidAt ? 'Desmarcar pago' : 'Marcar que pagué'} className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-black transition-colors disabled:opacity-40 ${order.paidAt ? 'border-[#4f9d3a] bg-[#4f9d3a] text-white hover:bg-[#3f8430]' : 'border-[#f2c46d] bg-white text-[#a34d25] hover:border-[#4f9d3a] hover:text-[#4f9d3a]'}`}>{order.paidAt ? <BadgeCheck className="size-4" /> : <Wallet className="size-4" />}{order.paidAt ? 'Pagado' : 'Pagué'}</button>}<button type="button" onClick={() => removeOrder(order)} disabled={removingId === order.id} aria-label={`Dar de baja a ${order.name}`} title={`Dar de baja a ${order.name}`} className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#f4dfb6] text-[#b36b37] transition-colors hover:border-[#e36d2f] hover:bg-[#fff0c9] hover:text-[#762d23] disabled:opacity-40"><Trash2 className="size-4" /></button></div></li>)}</ul>}
-            <div className="mt-6 flex items-center justify-between gap-3 border-t border-[#f4dfb6] pt-5"><p className="text-xs text-[#a87967]">La lista se actualiza automáticamente.<br />Si no podés venir, dale al tacho de tu fila.</p><Button type="button" variant="ghost" onClick={clearOrders} disabled={!orders.length || isClearing} className="shrink-0 text-[#a34d25] hover:bg-[#fff0c9] hover:text-[#762d23]"><Trash2 data-icon="inline-start" /> {isClearing ? 'Borrando...' : 'Limpiar lista'}</Button></div>
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-[#f4dfb6] pt-5"><p className="text-xs text-[#a87967]">La lista se actualiza automáticamente.<br />Si no podés venir, dale al tacho de tu fila.</p><Button type="button" variant="ghost" onClick={askClear} disabled={(!orders.length && !hasSettings) || isClearing} className="shrink-0 text-[#a34d25] hover:bg-[#fff0c9] hover:text-[#762d23]"><Trash2 data-icon="inline-start" /> {isClearing ? 'Borrando...' : 'Limpiar lista'}</Button></div>
           </div>
         </div>
         <footer className="pt-8 text-center text-xs font-medium text-[#b8907b]">Hecho para compartir una buena mesa.</footer>
       </section>
+
+      {confirmClear && (
+        <div role="dialog" aria-modal="true" aria-labelledby="clear-title" onClick={() => setConfirmClear(false)} onKeyDown={(event) => event.key === 'Escape' && setConfirmClear(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#3c201b]/50 px-5 backdrop-blur-sm">
+          <div onClick={(event) => event.stopPropagation()} className="w-full max-w-md rounded-[2rem] border-2 border-[#762d23] bg-[#fff8ed] p-6 shadow-[6px_7px_0_#762d23] sm:p-7">
+            <div className="flex items-center gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#e36d2f] text-white"><Trash2 className="size-5" /></div><h2 id="clear-title" className="text-xl font-black text-[#762d23]">{orders.length ? '¿Borrar la lista completa?' : '¿Borrar alias y monto?'}</h2></div>
+            <p className="mt-4 text-sm leading-6 text-[#785b50]">{orders.length ? `Son ${orders.length} ${orders.length === 1 ? 'anotado' : 'anotados'}. Antes de borrar se manda el detalle al bot de Telegram.` : 'La lista ya está vacía.'}</p>
+            {hasSettings && <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#f2c46d] bg-white px-4 py-3 text-sm font-bold text-[#542d24]"><input type="checkbox" checked={clearSettings} onChange={(event) => setClearSettings(event.target.checked)} className="mt-0.5 size-4 accent-[#e36d2f]" />Borrar también el alias y el monto por sanguchito</label>}
+            <div className="mt-6 flex justify-end gap-3">
+              <Button type="button" variant="ghost" autoFocus onClick={() => setConfirmClear(false)} className="rounded-xl font-bold text-[#a34d25] hover:bg-[#fff0c9] hover:text-[#762d23]">Cancelar</Button>
+              <Button type="button" onClick={clearOrders} disabled={!orders.length && !clearSettings} className="rounded-xl bg-[#e36d2f] font-black text-white hover:bg-[#762d23]"><Trash2 data-icon="inline-start" /> Borrar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

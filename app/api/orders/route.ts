@@ -1,8 +1,8 @@
 import { getBotToken } from '@/lib/telegram'
-import { count, desc, sum } from 'drizzle-orm'
+import { count, desc, inArray, sum } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { sandwichOrders } from '@/lib/db/schema'
+import { sandwichOrders, settings } from '@/lib/db/schema'
 import { borrarLista } from '@/lib/limpieza'
 
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ?? ''
@@ -80,7 +80,13 @@ export async function POST(request: Request) {
 }
 
 // Borra TODA la lista. Sin clave: la lista es interna.
-export async function DELETE() {
-  const borrados = await borrarLista('Se borró la lista completa')
+// Con ?ajustes=1 borra tambien alias y precio, como el reinicio del jueves.
+export async function DELETE(request: Request) {
+  const conAjustes = new URL(request.url).searchParams.get('ajustes') === '1'
+  // Primero la lista: su resumen para el bot usa el precio.
+  const borrados = await borrarLista(conAjustes ? 'Se borró la lista completa, el alias y el precio' : 'Se borró la lista completa')
+  if (conAjustes) {
+    await db.delete(settings).where(inArray(settings.key, ['alias', 'aliasUpdatedAt', 'price']))
+  }
   return NextResponse.json({ ok: true, borrados })
 }
