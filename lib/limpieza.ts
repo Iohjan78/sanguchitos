@@ -1,6 +1,7 @@
 import { getBotToken } from '@/lib/telegram'
 import { db } from '@/lib/db'
 import { sandwichOrders, type SandwichOrder } from '@/lib/db/schema'
+import { leerPrecio, resumenPagos } from '@/lib/pagos'
 
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ?? ''
 
@@ -15,7 +16,7 @@ function fechaHora(valor: Date) {
   }).format(valor)
 }
 
-async function avisarBorradoTotal(titulo: string, borrados: SandwichOrder[]) {
+async function avisarBorradoTotal(titulo: string, borrados: SandwichOrder[], precio: number | null) {
   try {
     const botToken = await getBotToken()
     const totalSanguchitos = borrados.reduce((acc, o) => acc + o.quantity, 0)
@@ -35,6 +36,8 @@ async function avisarBorradoTotal(titulo: string, borrados: SandwichOrder[]) {
       `Se dieron de baja ${borrados.length} ${borrados.length === 1 ? 'anotado' : 'anotados'} (${totalSanguchitos} ${totalSanguchitos === 1 ? 'sanguchito' : 'sanguchitos'}):`,
       ``,
       ...lineas,
+      ``,
+      ...resumenPagos(borrados, precio),
     ].join('\n')
 
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -55,6 +58,8 @@ async function avisarBorradoTotal(titulo: string, borrados: SandwichOrder[]) {
  * es el unico registro que queda de quienes estaban anotados.
  */
 export async function borrarLista(titulo: string): Promise<number> {
+  // El precio se lee antes: el resumen de pagos lo necesita.
+  const precio = await leerPrecio()
   const borrados = await db
     .delete(sandwichOrders)
     .returning()
@@ -62,7 +67,7 @@ export async function borrarLista(titulo: string): Promise<number> {
   if (!borrados.length) return 0
 
   borrados.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-  await avisarBorradoTotal(titulo, borrados)
+  await avisarBorradoTotal(titulo, borrados, precio)
 
   return borrados.length
 }

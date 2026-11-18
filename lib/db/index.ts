@@ -26,13 +26,26 @@ function abrir(): Database.Database {
       id          TEXT    PRIMARY KEY,
       name        TEXT    NOT NULL,
       quantity    INTEGER NOT NULL,
-      created_at  INTEGER NOT NULL
+      created_at  INTEGER NOT NULL,
+      paid_at     INTEGER
     );
     CREATE TABLE IF NOT EXISTS settings (
       key    TEXT PRIMARY KEY,
       value  TEXT NOT NULL
     );
   `)
+
+  // CREATE TABLE IF NOT EXISTS no agrega columnas a una tabla que ya existe:
+  // paid_at llego despues, asi que se suma a mano si falta.
+  const columnas = sqlite.prepare('PRAGMA table_info(sandwich_orders)').all() as { name: string }[]
+  if (!columnas.some((c) => c.name === 'paid_at')) {
+    try {
+      sqlite.exec('ALTER TABLE sandwich_orders ADD COLUMN paid_at INTEGER')
+    } catch (error) {
+      // Otro proceso la agrego entre la consulta y el ALTER: ya esta, sigue.
+      if (!String(error).includes('duplicate column')) throw error
+    }
+  }
 
   return sqlite
 }

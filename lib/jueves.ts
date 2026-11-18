@@ -47,8 +47,9 @@ async function revisar() {
   // Se marca antes de borrar: si algo falla a la mitad, mejor que no se
   // repita mandando el mismo resumen al bot.
   await guardarUltimoReinicio(ahora)
-  await db.delete(settings).where(inArray(settings.key, ['alias', 'aliasUpdatedAt', 'price']))
+  // Primero la lista: su resumen usa el precio, que se borra despues.
   const borrados = await borrarLista('Reinicio automático del jueves: se borró la lista completa')
+  await db.delete(settings).where(inArray(settings.key, ['alias', 'aliasUpdatedAt', 'price']))
   console.log(`Reinicio del jueves: ${borrados} pedidos borrados, alias y precio limpios.`)
 }
 

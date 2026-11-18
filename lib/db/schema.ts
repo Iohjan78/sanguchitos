@@ -13,6 +13,8 @@ export const sandwichOrders = sqliteTable('sandwich_orders', {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .$defaultFn(() => new Date()),
+  // Cuando la persona marco que pago. Null = todavia no pago.
+  paidAt: integer('paid_at', { mode: 'timestamp' }),
 })
 
 export type SandwichOrder = typeof sandwichOrders.$inferSelect
