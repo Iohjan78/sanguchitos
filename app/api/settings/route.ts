@@ -1,8 +1,36 @@
-import { eq, inArray } from 'drizzle-orm'
+import { asc, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { claveValida } from '@/lib/admin'
 import { db } from '@/lib/db'
-import { settings } from '@/lib/db/schema'
+import { sandwichOrders, settings } from '@/lib/db/schema'
+import { pesos, resumenPagos } from '@/lib/pagos'
+import { getBotToken } from '@/lib/telegram'
+
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID ?? ''
+
+// Al cargar alias y precio ya se puede cobrar: se manda quien tiene que pagar
+// cuanto. Si Telegram falla, los datos ya quedaron guardados.
+async function avisarCobro(alias: string, price: number) {
+  try {
+    const botToken = await getBotToken()
+    const pedidos = await db.select().from(sandwichOrders).orderBy(asc(sandwichOrders.createdAt))
+    const message = [
+      `Ya se puede pagar el viernes de sanguchitos`,
+      ``,
+      `Alias: ${alias}`,
+      `Precio por sanguchito: ${pesos(price)}`,
+      ``,
+      ...(pedidos.length ? resumenPagos(pedidos, price) : ['Todavía no hay nadie anotado.']),
+    ].join('\n')
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message }),
+    })
+  } catch (error) {
+    console.error('No se pudo avisar el cobro por Telegram:', error)
+  }
+}
 
 // Lo lee cualquiera: es lo que muestra la landing.
 export async function GET() {
@@ -43,6 +71,8 @@ export async function PUT(request: Request) {
       .values({ key, value })
       .onConflictDoUpdate({ target: settings.key, set: { value } })
   }
+
+  await avisarCobro(alias, price)
 
   return NextResponse.json({ alias, price })
 }
